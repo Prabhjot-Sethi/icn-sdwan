@@ -57,10 +57,12 @@ spec:
     name: subnet
     gateway: $providerGateway
     excludeIps: $providerExcludeIps
-  providerNetType: DIRECT
-  direct:
+  providerNetType: VLAN
+  vlan:
+    vlanId: "$providerVlan"
     providerInterfaceName: $providerNetworkInterface
-    directNodeSelector: all
+    logicalInterfaceName: $providerNetworkInterface.$providerVlan
+    vlanNodeSelector: all
 
 EOF
 
