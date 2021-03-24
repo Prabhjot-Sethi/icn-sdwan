@@ -39,75 +39,8 @@ error_detect()
 
 trap "error_detect $LINENO" ERR
 
-echo "--------------------- Setup CNF for sdewan hub -----------------------"
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.11.0/cert-manager.yaml --validate=false
-sleep 2m
-
-echo "--------------------- Creating ovn networks ---------------------"
-cat > network-prepare.yaml << EOF
----
-apiVersion: k8s.plugin.opnfv.org/v1alpha1
-kind: ProviderNetwork
-metadata:
-  name: pnetwork
-spec:
-  cniType: ovn4nfv
-  ipv4Subnets:
-  - subnet: $providerSubnet
-    name: subnet
-    gateway: $providerGateway
-    excludeIps: $providerExcludeIps
-  providerNetType: VLAN
-  vlan:
-    vlanId: "$providerVlan"
-    providerInterfaceName: $providerNetworkInterface
-    logicalInterfaceName: $providerNetworkInterface.$providerVlan
-    vlanNodeSelector: all
-
-EOF
-
-kubectl apply -f network-prepare.yaml
-sleep 2
-
-ovnProviderNet=$(kubectl get providernetwork | sed -n 2p | awk '{print $1}')
-if [ -n "${ovnProviderNet}" ]
-then
-	echo "Network created successfully"
-else
-	echo "Network creation failed"
-	exit 1
-fi
-
-
-echo "--------------------- Creating sdwan-cnf with helm ---------------------"
-curl https://helm.baltorepo.com/organization/signing.asc | sudo apt-key add -
-sudo apt-get install apt-transport-https --yes
-echo "deb https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt-get update
-sudo apt-get install helm
-
-envsubst < ./cnf/values.yaml >> ./cnf/values.yaml
-helm package ./cnf
-helm install ./cnf-0.1.0.tgz --generate-name
-
-sleep 20
-
-sdwan_status=$(kubectl get po | grep $sdewan_cnf_name | awk '{print $3}' | head -1)
-if [ "$sdwan_status" == "Running" ]
-then
-	echo "Sdewan cnf $sdewan_cnf_name created successfully"
-else
-        sleep 40
-	sdwan_status=$(kubectl get po | grep $sdewan_cnf_name | awk '{print $3}' | head -1)
-	if [ "$sdwan_status" != "Running" ]
-	then
-	     echo "Sdewan cnf creation failed"
-             exit 2
-        fi
-fi
-
 echo "--------------------- Setup sdewan controller ---------------------"
-helm package ./controllers
+helm package ../../edge-scripts/helm-tmp/controllers
 helm install ./controllers-0.1.0.tgz --generate-name
 sleep 1m
 
