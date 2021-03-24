@@ -49,60 +49,6 @@ error_detect()
 
 trap "error_detect $LINENO" ERR
 
-echo "--------------------- Setup CNF for ${edgeName} ---------------------"
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.11.0/cert-manager.yaml --validate=false
-sleep 3m
-
-echo "--------------------- Creating ovn networks ---------------------"
-cat > network-prepare.yaml << EOF
----
-apiVersion: k8s.plugin.opnfv.org/v1alpha1
-kind: ProviderNetwork
-metadata:
-  name: pnetwork
-spec:
-  cniType: ovn4nfv
-  ipv4Subnets:
-  - subnet: $providerSubnet
-    name: subnet
-    gateway: $providerGateway
-    excludeIps: $providerExcludeIps
-  providerNetType: VLAN
-  vlan:
-    vlanId: "$providerVlan"
-    providerInterfaceName: $providerNetworkInterface
-    logicalInterfaceName: $providerNetworkInterface.$providerVlan
-    vlanNodeSelector: all
-
----
-apiVersion: k8s.plugin.opnfv.org/v1alpha1
-kind: Network
-metadata:
-  name: ovn-network
-spec:
-  # Add fields here
-  cniType: ovn4nfv
-  ipv4Subnets:
-  - subnet: $ovnSubnet
-    name: subnet1
-    gateway: $ovnGateway
-    excludeIps: $ovnExcludeIps
-
-EOF
-
-kubectl apply -f network-prepare.yaml
-sleep 2
-
-ovnNet=$(kubectl get network | sed -n 2p | awk '{print $1}')
-ovnProviderNet=$(kubectl get providernetwork | sed -n 2p | awk '{print $1}')
-if [ -n "${ovnNet}" ] && [ -n "${ovnProviderNet}" ]
-then
-	echo "Networks created successfully"
-else
-	echo "Networks creation failed"
-	exit 1
-fi
-
 echo "--------------------- Installing sdewan cnf with helm ---------------------"
 curl https://helm.baltorepo.com/organization/signing.asc | sudo apt-key add -
 sudo apt-get install apt-transport-https --yes
@@ -110,6 +56,7 @@ echo "deb https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt
 sudo apt-get update
 sudo apt-get install helm
 
+scp -r ../../edge-scripts/helm-tmp/cnf ./
 envsubst < ./cnf/values.yaml >> ./cnf/value.yaml
 mv ./cnf/value.yaml ./cnf/values.yaml
 helm package ./cnf
@@ -192,7 +139,7 @@ else
 fi
 
 echo "--------------------- Setup sdewan controller with helm ---------------------"
-helm package ./controllers
+helm package ../../edge-scripts/helm-tmp/controllers
 helm install controllers-0.1.0.tgz --generate-name
 sleep 1m
 
